@@ -8,16 +8,36 @@ import easyocr
 DEBUG_DIR = Path("debug")
 DEBUG_DIR.mkdir(exist_ok=True)
 
-# Создаём OCR-reader один раз
 reader = easyocr.Reader(["en"], gpu=False)
+
+
+def extract_digits(text: str) -> str:
+    return re.sub(r"\D", "", text)
+
+
+def preprocess_full_image(image):
+    """
+    Предобработка всего изображения для EasyOCR.
+    """
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    # Увеличиваем фото, чтобы цифры были крупнее
+    h, w = gray.shape[:2]
+
+    if max(h, w) < 1200:
+        gray = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+
+    # Немного повышаем контраст
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    contrast = clahe.apply(gray)
+
+    return contrast
 
 
 def crop_card_number_area(image):
     """
-    Вырезаем область номера карты.
-    Для данной карты номер находится справа снизу.
+    Старый запасной вариант: вырезаем правую нижнюю область.
     """
-
     h, w = image.shape[:2]
 
     x1 = int(w * 0.55)
@@ -25,39 +45,55 @@ def crop_card_number_area(image):
     x2 = int(w * 0.99)
     y2 = int(h * 0.90)
 
-    crop = image[y1:y2, x1:x2]
-
-    return crop
+    return image[y1:y2, x1:x2]
 
 
-def preprocess_for_easyocr(crop):
-    """
-    Для EasyOCR не нужно сильно портить изображение бинаризацией.
-    Лучше оставить серое или контрастное изображение.
-    """
-
+def preprocess_crop(crop):
     gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-
-    # Увеличиваем изображение
     gray_big = cv2.resize(gray, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
 
-    # Немного повышаем контраст
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     contrast = clahe.apply(gray_big)
 
     return contrast
 
 
-def extract_digits(text):
-    return re.sub(r"\D", "", text)
+def find_10_digit_number_from_easyocr(results):
+    """
+    Ищем 10-значный номер среди результатов EasyOCR.
+    Возвращаем самый уверенный вариант.
+    """
+
+    candidates = []
+
+    for item in results:
+        # EasyOCR возвращает: bbox, text, confidence
+        bbox, text, confidence = item
+
+        digits = extract_digits(text)
+
+        found_numbers = re.findall(r"\d{10}", digits)
+
+        for number in found_numbers:
+            candidates.append((number, confidence, text))
+
+    if not candidates:
+        return None, ""
+
+    # Берём кандидата с максимальной confidence
+    best_number, best_confidence, best_raw_text = max(
+        candidates,
+        key=lambda x: x[1]
+    )
+
+    return best_number, best_raw_text
 
 
 def extract_card_number(image_path: str):
     """
-    Распознаёт номер транспортной карты с изображения.
-    Возвращает:
-    - номер карты
-    - сырой распознанный текст
+    Распознаёт 10-значный номер транспортной карты.
+    Сначала ищет номер на всём изображении.
+    Если не получилось — пробует старый crop-метод.
     """
 
     image = cv2.imread(image_path)
@@ -65,60 +101,51 @@ def extract_card_number(image_path: str):
     if image is None:
         raise ValueError("Не удалось открыть изображение")
 
-    crop = crop_card_number_area(image)
-    processed = preprocess_for_easyocr(crop)
+    # ---------- 1. OCR по всему изображению ----------
+    full_processed = preprocess_full_image(image)
+    cv2.imwrite(str(DEBUG_DIR / "full_processed.jpg"), full_processed)
 
-    cv2.imwrite(str(DEBUG_DIR / "crop_number.jpg"), crop)
-    cv2.imwrite(str(DEBUG_DIR / "easyocr_processed.jpg"), processed)
-
-    # EasyOCR
-    results = reader.readtext(
-        processed,
+    full_results = reader.readtext(
+        full_processed,
         detail=1,
         allowlist="0123456789"
     )
 
-    all_texts = []
+    number, raw_text = find_10_digit_number_from_easyocr(full_results)
 
-    for bbox, text, confidence in results:
-        digits = extract_digits(text)
-
-        all_texts.append({
-            "text": text,
-            "digits": digits,
-            "confidence": confidence
-        })
-
-    # Сохраняем отладку
-    with open(DEBUG_DIR / "easyocr_results.txt", "w", encoding="utf-8") as f:
-        for item in all_texts:
-            f.write(f"text: {item['text']}\n")
-            f.write(f"digits: {item['digits']}\n")
-            f.write(f"confidence: {item['confidence']}\n")
+    with open(DEBUG_DIR / "easyocr_full_results.txt", "w", encoding="utf-8") as f:
+        for bbox, text, confidence in full_results:
+            f.write(f"text: {text}\n")
+            f.write(f"digits: {extract_digits(text)}\n")
+            f.write(f"confidence: {confidence}\n")
             f.write("-" * 40 + "\n")
 
-    candidates = []
+    if number:
+        return number, raw_text
 
-    for item in all_texts:
-        digits = item["digits"]
+    # ---------- 2. Если на всём фото не нашли — fallback crop ----------
+    crop = crop_card_number_area(image)
+    crop_processed = preprocess_crop(crop)
 
-        # У твоей карты номер 10 цифр
-        found = re.findall(r"\d{10}", digits)
-        for number in found:
-            candidates.append((number, item["confidence"]))
+    cv2.imwrite(str(DEBUG_DIR / "crop_number.jpg"), crop)
+    cv2.imwrite(str(DEBUG_DIR / "crop_processed.jpg"), crop_processed)
 
-    if candidates:
-        # Берём вариант с максимальной уверенностью
-        best_number = max(candidates, key=lambda x: x[1])[0]
-        return best_number, best_number
+    crop_results = reader.readtext(
+        crop_processed,
+        detail=1,
+        allowlist="0123456789"
+    )
 
-    # Если EasyOCR разбил номер на части, склеиваем все цифры
-    joined_digits = "".join(item["digits"] for item in all_texts)
+    number, raw_text = find_10_digit_number_from_easyocr(crop_results)
 
-    found = re.findall(r"\d{8,12}", joined_digits)
+    with open(DEBUG_DIR / "easyocr_crop_results.txt", "w", encoding="utf-8") as f:
+        for bbox, text, confidence in crop_results:
+            f.write(f"text: {text}\n")
+            f.write(f"digits: {extract_digits(text)}\n")
+            f.write(f"confidence: {confidence}\n")
+            f.write("-" * 40 + "\n")
 
-    if found:
-        best_number = max(found, key=len)
-        return best_number, joined_digits
+    if number:
+        return number, raw_text
 
-    return None, joined_digits
+    return None, ""
