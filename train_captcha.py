@@ -207,33 +207,43 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Device:", device)
 
-    files = sorted(list(DATASET_DIR.glob("*.png")))
+    real_files = sorted(list(Path("dataset/captcha/labeled").glob("*.png")))
+    synthetic_files = sorted(list(Path("dataset/captcha/synthetic").glob("*.png")))
 
-    if len(files) == 0:
-        raise ValueError("В папке dataset/captcha/labeled нет captcha")
+    if len(real_files) == 0 and len(synthetic_files) == 0:
+        raise ValueError(
+            "Нет captcha для обучения. "
+            "Проверь папки dataset/captcha/labeled и dataset/captcha/synthetic"
+        )
 
-    print(f"Всего captcha в датасете: {len(files)}")
+    print(f"Реальных captcha: {len(real_files)}")
+    print(f"Синтетических captcha: {len(synthetic_files)}")
 
-    # Перемешиваем файлы перед разделением
-    random.shuffle(files)
+    # Перемешиваем реальные captcha
+    random.shuffle(real_files)
+    random.shuffle(synthetic_files)
 
-    # Делим датасет: 80% train, 20% val
-    train_size = int(0.8 * len(files))
-    train_files = files[:train_size]
-    val_files = files[train_size:]
+    # Validation делаем только на реальных captcha
+    val_size = max(1, int(0.2 * len(real_files)))
 
-    print(f"Train captcha: {len(train_files)}")
-    print(f"Val captcha: {len(val_files)}")
+    val_files = real_files[:val_size]
+    train_real_files = real_files[val_size:]
 
-    # Для train пока НЕ используем сильные аугментации,
-    # потому что captcha маленькие и искажения могут портить цифры
+    # Train = реальные captcha без validation + synthetic captcha
+    train_files = train_real_files + synthetic_files
+    random.shuffle(train_files)
+
+    print(f"Train real captcha: {len(train_real_files)}")
+    print(f"Train synthetic captcha: {len(synthetic_files)}")
+    print(f"Train total captcha: {len(train_files)}")
+    print(f"Val real captcha: {len(val_files)}")
+
     train_transform = transforms.Compose([
         transforms.Grayscale(),
         transforms.Resize((50, 160)),
         transforms.ToTensor()
     ])
 
-    # Для validation тоже только базовая обработка
     val_transform = transforms.Compose([
         transforms.Grayscale(),
         transforms.Resize((50, 160)),
@@ -259,7 +269,6 @@ def main():
 
     criterion = nn.CrossEntropyLoss()
 
-    # Уменьшаем learning rate, чтобы обучение было стабильнее
     optimizer = torch.optim.Adam(
         model.parameters(),
         lr=0.0005
@@ -297,7 +306,6 @@ def main():
             f"val_symbol_acc={val_symbol_acc:.4f}"
         )
 
-        # Сохраняем модель, если улучшилась посимвольная точность
         if val_symbol_acc > best_val_symbol_acc:
             best_val_symbol_acc = val_symbol_acc
             best_val_full_acc = val_full_acc
