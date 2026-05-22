@@ -7,7 +7,7 @@ import torch.nn as nn
 import torchvision.transforms as transforms
 
 
-MODEL_PATH = Path("models/captcha_cnn.pth")
+MODEL_PATH = Path("../models/captcha_cnn.pth")
 
 
 class CaptchaCNN(nn.Module):
@@ -112,7 +112,7 @@ def predict_captcha(image_path: str, model=None, device=None):
 
 
 if __name__ == "__main__":
-    test_path = "debug/site_captcha.png"
+    test_path = "../debug/site_captcha.png"
 
     model, device = load_captcha_model()
     result = predict_captcha(test_path, model, device)

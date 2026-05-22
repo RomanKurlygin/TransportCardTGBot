@@ -10,11 +10,11 @@ from aiogram.types import Message, CallbackQuery, FSInputFile
 from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from card_ocr import extract_card_number
-from balance_site import create_balance_session_and_get_captcha, submit_captcha_and_get_result
-from captcha_dataset import save_labeled_captcha
-from captcha_solver import predict_captcha
-from result_parser import parse_balance_result, format_balance_result
+from cv.card_ocr import extract_card_number
+from web.balance_site import create_balance_session_and_get_captcha, submit_captcha_and_get_result
+from training.captcha_dataset import save_labeled_captcha
+from cv.captcha_solver import predict_captcha
+from cv.result_parser import parse_balance_result, format_balance_result
 
 load_dotenv()
 
@@ -24,8 +24,8 @@ if not BOT_TOKEN:
     raise ValueError("Не найден BOT_TOKEN в файле .env")
 
 
-DOWNLOAD_DIR = Path("downloads")
-LOG_DIR = Path("logs")
+DOWNLOAD_DIR = Path("../downloads")
+LOG_DIR = Path("../logs")
 
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 LOG_DIR.mkdir(exist_ok=True)
@@ -36,7 +36,6 @@ dp = Dispatcher()
 
 
 # Временное хранилище данных пользователя
-# Пока для учебного проекта можно хранить просто в словаре
 user_data = {}
 
 
@@ -389,7 +388,6 @@ async def text_handler(message: Message):
     user_id = message.from_user.id
     text = message.text.strip()
 
-    # 1. Если ждём ручное исправление номера карты
     if user_id in user_data and user_data[user_id].get("waiting_for_card_edit"):
         if not text.isdigit():
             await message.answer(
@@ -427,7 +425,6 @@ async def text_handler(message: Message):
 
         return
 
-    # 2. Если ждём ввод captcha с картинки
     if user_id in user_data and user_data[user_id].get("waiting_for_captcha_text"):
         if not text.isdigit():
             await message.answer(

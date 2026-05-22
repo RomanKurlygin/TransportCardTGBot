@@ -1,12 +1,12 @@
 import asyncio
 from pathlib import Path
 
-from balance_site import open_balance_page_accept_and_get_captcha
-from captcha_dataset import save_labeled_captcha
+from web.balance_site import open_balance_page_accept_and_get_captcha
+from training.captcha_dataset import save_labeled_captcha
 
 
 def count_labeled_captchas() -> int:
-    dataset_dir = Path("dataset/captcha/labeled")
+    dataset_dir = Path("../dataset/captcha/labeled")
     dataset_dir.mkdir(parents=True, exist_ok=True)
     return len(list(dataset_dir.glob("*.png")))
 

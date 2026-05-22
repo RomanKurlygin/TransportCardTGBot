@@ -5,7 +5,7 @@ import cv2
 import easyocr
 
 
-DEBUG_DIR = Path("debug")
+DEBUG_DIR = Path("../debug")
 DEBUG_DIR.mkdir(exist_ok=True)
 
 reader = easyocr.Reader(["en"], gpu=False)
@@ -21,13 +21,11 @@ def preprocess_full_image(image):
     """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    # Увеличиваем фото, чтобы цифры были крупнее
     h, w = gray.shape[:2]
 
     if max(h, w) < 1200:
         gray = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
 
-    # Немного повышаем контраст
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     contrast = clahe.apply(gray)
 
@@ -67,7 +65,6 @@ def find_10_digit_number_from_easyocr(results):
     candidates = []
 
     for item in results:
-        # EasyOCR возвращает: bbox, text, confidence
         bbox, text, confidence = item
 
         digits = extract_digits(text)
@@ -80,7 +77,6 @@ def find_10_digit_number_from_easyocr(results):
     if not candidates:
         return None, ""
 
-    # Берём кандидата с максимальной confidence
     best_number, best_confidence, best_raw_text = max(
         candidates,
         key=lambda x: x[1]
@@ -90,18 +86,12 @@ def find_10_digit_number_from_easyocr(results):
 
 
 def extract_card_number(image_path: str):
-    """
-    Распознаёт 10-значный номер транспортной карты.
-    Сначала ищет номер на всём изображении.
-    Если не получилось — пробует старый crop-метод.
-    """
 
     image = cv2.imread(image_path)
 
     if image is None:
         raise ValueError("Не удалось открыть изображение")
 
-    # ---------- 1. OCR по всему изображению ----------
     full_processed = preprocess_full_image(image)
     cv2.imwrite(str(DEBUG_DIR / "full_processed.jpg"), full_processed)
 
@@ -123,7 +113,6 @@ def extract_card_number(image_path: str):
     if number:
         return number, raw_text
 
-    # ---------- 2. Если на всём фото не нашли — fallback crop ----------
     crop = crop_card_number_area(image)
     crop_processed = preprocess_crop(crop)
 

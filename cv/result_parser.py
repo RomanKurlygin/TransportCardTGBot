@@ -29,7 +29,6 @@ def extract_between(text: str, start_label: str, end_labels: list[str]) -> str |
 
     value = match.group(1).strip()
 
-    # Чистим переносы и лишние пробелы
     value = re.sub(r"\s+", " ", value).strip()
 
     return value if value else None
@@ -42,13 +41,11 @@ def parse_balance_result(text: str) -> dict:
 
     text = clean_text(text)
 
-    # Берём только часть текста, начиная с результата проверки карты
     card_start = re.search(r"Карта\s*№\s*\d+", text)
 
     if card_start:
         text = text[card_start.start():]
 
-    # Отрезаем футер сайта, чтобы он не попадал в поля
     footer_markers = [
         "Виды карт",
         "Услуги",

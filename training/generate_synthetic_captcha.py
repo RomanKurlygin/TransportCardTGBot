@@ -6,7 +6,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import numpy as np
 
 
-OUTPUT_DIR = Path("dataset/captcha/synthetic")
+OUTPUT_DIR = Path("../dataset/captcha/synthetic")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 WIDTH = 201
@@ -76,10 +76,8 @@ def create_captcha(text: str):
 
     image = Image.new("RGB", (WIDTH, HEIGHT), "white")
 
-    # Сначала шум на фон
     image = add_noise(image, amount=random.randint(700, 1200))
 
-    # Отдельно рисуем цифры
     digit_layer = Image.new("RGBA", (WIDTH, HEIGHT), (255, 255, 255, 0))
 
     x_positions = [18, 62, 107, 153]
@@ -95,7 +93,6 @@ def create_captcha(text: str):
         else:
             font = ImageFont.load_default()
 
-        # Небольшой разброс по положению
         dx = random.randint(-3, 3)
         dy = random.randint(-5, 3)
 
@@ -106,7 +103,6 @@ def create_captcha(text: str):
             fill=(0, 0, 0, 255)
         )
 
-        # Небольшой поворот цифры
         angle = random.uniform(-8, 8)
         digit_img = digit_img.rotate(
             angle,
@@ -121,11 +117,9 @@ def create_captcha(text: str):
 
     image = Image.alpha_composite(image.convert("RGBA"), digit_layer)
 
-    # Лёгкое размытие, как от скриншота/сжатия
     if random.random() < 0.4:
         image = image.filter(ImageFilter.GaussianBlur(radius=random.uniform(0.2, 0.6)))
 
-    # Иногда немного меняем яркость
     arr = np.array(image.convert("RGB")).astype(np.int16)
     shift = random.randint(-10, 10)
     arr = np.clip(arr + shift, 0, 255).astype(np.uint8)

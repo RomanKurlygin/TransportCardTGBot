@@ -2,7 +2,7 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 
 
-DEBUG_DIR = Path("debug")
+DEBUG_DIR = Path("../debug")
 DEBUG_DIR.mkdir(exist_ok=True)
 
 BALANCE_URL = "https://transkart.ru/services/check-balance"
@@ -144,7 +144,6 @@ async def save_captcha_image(page):
         except Exception:
             pass
 
-    # Сохраняем все найденные картинки для отладки
     with open(debug_info_path, "w", encoding="utf-8") as f:
         for item in all_candidates:
             f.write(f"frame: {item['frame_index']}\n")
@@ -155,8 +154,6 @@ async def save_captcha_image(page):
             f.write(f"alt: {item['alt']}\n")
             f.write("-" * 50 + "\n")
 
-    # Фильтр именно под captcha:
-    # логотип был 192x29, поэтому height >= 35
     captcha_candidates = []
 
     for item in all_candidates:
@@ -188,8 +185,6 @@ async def save_captcha_image(page):
             f"Список картинок сохранён: {debug_info_path}"
         )
 
-    # Берём кандидата с самой большой высотой,
-    # потому что captcha обычно выше логотипов/иконок
     best = max(captcha_candidates, key=lambda item: item["height"])
 
     await best["img"].scroll_into_view_if_needed(timeout=3000)

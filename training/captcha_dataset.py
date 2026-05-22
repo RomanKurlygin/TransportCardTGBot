@@ -3,7 +3,7 @@ from datetime import datetime
 import shutil
 
 
-CAPTCHA_DATASET_DIR = Path("dataset/captcha/labeled")
+CAPTCHA_DATASET_DIR = Path("../dataset/captcha/labeled")
 CAPTCHA_DATASET_DIR.mkdir(parents=True, exist_ok=True)
 
 

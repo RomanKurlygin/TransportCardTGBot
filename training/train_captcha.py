@@ -9,8 +9,8 @@ from torch.utils.data import Dataset, DataLoader, Subset
 import torchvision.transforms as transforms
 
 
-DATASET_DIR = Path("dataset/captcha/labeled")
-MODEL_PATH = Path("models/captcha_cnn.pth")
+DATASET_DIR = Path("../dataset/captcha/labeled")
+MODEL_PATH = Path("../models/captcha_cnn.pth")
 MODEL_PATH.parent.mkdir(exist_ok=True)
 
 
@@ -207,8 +207,8 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Device:", device)
 
-    real_files = sorted(list(Path("dataset/captcha/labeled").glob("*.png")))
-    synthetic_files = sorted(list(Path("dataset/captcha/synthetic").glob("*.png")))
+    real_files = sorted(list(Path("../dataset/captcha/labeled").glob("*.png")))
+    synthetic_files = sorted(list(Path("../dataset/captcha/synthetic").glob("*.png")))
 
     if len(real_files) == 0 and len(synthetic_files) == 0:
         raise ValueError(
@@ -219,17 +219,14 @@ def main():
     print(f"Реальных captcha: {len(real_files)}")
     print(f"Синтетических captcha: {len(synthetic_files)}")
 
-    # Перемешиваем реальные captcha
     random.shuffle(real_files)
     random.shuffle(synthetic_files)
 
-    # Validation делаем только на реальных captcha
     val_size = max(1, int(0.2 * len(real_files)))
 
     val_files = real_files[:val_size]
     train_real_files = real_files[val_size:]
 
-    # Train = реальные captcha без validation + synthetic captcha
     train_files = train_real_files + synthetic_files
     random.shuffle(train_files)
 
